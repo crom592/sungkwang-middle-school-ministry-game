@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>교회 레크리에이션 진행 앱</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Inter', sans-serif;
+        }
+        /* Accordion content panel styling */
+        #accordion-content-panel {
+            max-height: 0; /* Initially collapsed */
+            overflow-y: hidden; /* Hidden when collapsed */
+            transition: max-height 0.4s ease-in-out;
+        }
+        #accordion-content-panel.expanded {
+            max-height: 24rem; /* Tailwind's max-h-96 (384px). Adjust as needed. */
+            overflow-y: auto; /* Allows scrolling if list is longer */
+        }
+        /* Accordion icon rotation */
+        #accordion-icon.rotate-180 {
+            transform: rotate(180deg);
+        }
+        /* Styling for the active game button in the accordion list */
+        .game-nav-item.active {
+            background-color: #4F46E5; /* indigo-600 */
+            color: white !important; /* Ensure text color is white */
+        }
+        /* Ensure game content area can scroll if its content is too tall */
+        #game-content-area {
+            overflow-y: auto; /* Allow vertical scrolling for game content itself */
+        }
+
+        /* Added for 3D Photo Spinner */
+        #photo-spinner-scene {
+            width: 220px; /* Adjusted for image size */
+            height: 180px; /* Adjusted for image size */
+            perspective: 1200px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #photo-spinner-carousel {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+
+        #photo-spinner-carousel.is-spinning {
+            animation: carousel-spin-animation 1s linear 3; /* Spin 3 times over 3 seconds */
+        }
+
+        .spinner-image-item {
+            position: absolute;
+            width: 100px; /* Width of each image in the spinner */
+            height: 133px; /* Height maintaining ~3:4 aspect ratio */
+            backface-visibility: hidden;
+            border: 1px solid #ddd;
+            box-shadow: 0 0 8px rgba(0,0,0,0.3);
+            background-size: cover;
+            background-position: center;
+            /* Centering individual items within the carousel space before transform */
+            top: calc(50% - 66.5px); /* (133px / 2) */
+            left: calc(50% - 50px);  /* (100px / 2) */
+        }
+
+        @keyframes carousel-spin-animation {
+            from { transform: rotateY(0deg); }
+            to { transform: rotateY(360deg); }
+        }
+
+        /* Styles for Image Modal */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.8); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.show {
+            display: flex; /* Use flex to center content */
+        }
+
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 80%;
+            max-height: 80vh;
+            border-radius: 8px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .modal-close:hover,
+        .modal-close:focus {
+            color: #bbb;
+            text-decoration: none;
+        }
+        .photo-item-container {
+            position: relative;
+            display: inline-flex; /* 이미지를 감싸고 오버레이를 올바르게 위치시키기 위함 */
+            flex-direction: column; /* 내부 요소(이미지, 오버레이)를 수직 정렬 */
+            align-items: center; /* 가운데 정렬 */
+            /* 기존 w-1/2 sm:w-1/3 md:w-1/5 p-1 sm:p-2 클래스들은 이 컨테이너로 옮겨질 수 있습니다. */
+        }
+        
+        .photo-name-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.65); /* 반투명 검정 배경 */
+            color: white;
+            text-align: center;
+            padding: 6px 0;
+            font-size: 0.875rem; /* 14px, Tailwind 'text-sm' */
+            font-weight: 500; /* Tailwind 'font-medium' */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+            border-bottom-left-radius: 0.375rem; /* Tailwind 'rounded-md' 와 일치 */
+            border-bottom-right-radius: 0.375rem; /* Tailwind 'rounded-md' 와 일치 */
+            pointer-events: none; /* 오버레이가 이미지 클릭을 방해하지 않도록 */
+        }
+        
+        .photo-name-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+    </style>
+</head>
+<body class="bg-slate-100">
+    <div class="container mx-auto p-4 min-h-screen flex flex-col gap-4">
+        
+        <div id="accordion-outer-container" class="w-full bg-white rounded-xl shadow-xl">
+            <button id="accordion-header" class="w-full p-4 text-left text-xl font-bold text-indigo-700 flex justify-between items-center hover:bg-indigo-50 transition-colors duration-150 rounded-t-xl focus:outline-none">
+                <span>게임 목록</span>
+                <svg id="accordion-icon" class="w-6 h-6 transform transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+            <nav id="accordion-content-panel" class="overflow-hidden">
+                <ul id="game-nav-list" class="space-y-1 p-4 border-t border-gray-200">
+                    </ul>
+            </nav>
+        </div>
+
+        <main id="main-content-area" class="w-full bg-white p-6 sm:p-8 rounded-xl shadow-xl flex flex-col items-center justify-center relative flex-grow min-h-[60vh]">
+            <div id="welcome-message-container" class="text-center">
+                <img src="img/start.png" alt="환영 이미지" class="mt-8 mx-auto rounded-lg" onerror="this.onerror=null;this.src='https://placehold.co/300x200/EBF4FF/76A9FA?text=이미지 로딩 실패';">
+            </div>
+
+            <div id="game-display-container" class="hidden w-full h-full flex flex-col">
+                <h2 id="game-title-display" class="text-4xl font-bold mb-6 sm:mb-8 text-center text-indigo-800 break-words"></h2>
+                
+                <div id="game-content-area" class="flex-grow w-full text-center flex flex-col items-center justify-center p-2 sm:p-4">
+                    </div>
+                
+                <div id="quiz-controls-container" class="mt-6 sm:mt-8 flex flex-wrap justify-center items-center gap-3 sm:gap-4 pt-4 border-t border-gray-200">
+                    </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Image Modal HTML -->
+    <div id="imageModal" class="modal">
+        <span class="modal-close" onclick="closeImageModal()">&times;</span>
+        <img class="modal-content" id="modalImage">
+    </div>
+
+    <script>
+        // --- Teacher Photo Game Data Setup ---
+        const teacherImageFiles = [
+            "이연주.jpeg", "송하민.jpeg", "윤예람.jpeg", "정인혁.jpeg", "고우현.jpeg",
+            "황일록.jpeg", "이새롬.jpeg", "김영훈.jpeg", "나해지.jpeg", "김성연.jpeg",
+            "서예슬.jpeg", "안은민.jpeg", "김예빈.jpeg", "인은혜.jpeg", "이은화.jpeg"
+        ];
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        const teacherNamesBySet = [
+            ["이연주", "송하민", "윤예람", "정인혁", "고우현"],
+            ["황일록", "이새롬", "김영훈", "나해지", "김성연"],
+            ["서예슬", "안은민", "김예빈", "인은혜", "이은화"]
+        ];
+
+        const teacherPhotoSets = [];
+        const photosPerSet = 5; // Defined by the length of inner arrays in teacherNamesBySet
+
+        for (let i = 0; i < teacherNamesBySet.length; i++) {
+            const currentSetNames = teacherNamesBySet[i];
+            
+            if (teacherImageFiles.length < (i * photosPerSet) + photosPerSet) {
+                console.warn(`WARN: Not enough images in teacherImageFiles for teacher set ${i + 1}. Required: ${(i * photosPerSet) + photosPerSet}, Available: ${teacherImageFiles.length}. Skipping this set.`);
+                continue;
+            }
+
+            const setImagesData = [];
+            for (let j = 0; j < photosPerSet; j++) {
+                const filenameIndex = (i * photosPerSet) + j;
+                // It's assumed teacherImageFiles[0] corresponds to currentSetNames[0] of the first set, and so on.
+                const filename = teacherImageFiles[filenameIndex];
+                setImagesData.push({
+                    src: `teachers/${filename}`,
+                    name: currentSetNames[j] // Assign the correct teacher's name
+                });
+            }
+            
+            // To shuffle the display order of photos within this set, uncomment the line below.
+            // The answer string will still reflect the original order of names for clarity.
+            // shuffleArray(setImagesData);
+
+            if (setImagesData.length === photosPerSet) {
+                teacherPhotoSets.push({
+                    questionText: `선생님 조합 ${i + 1}: 다음 ${photosPerSet}명의 어릴적 사진입니다. 누구일까요?`,
+                    images: setImagesData, 
+                    get answer() {
+                        // The answer string is the names in the order they were defined for the set.
+                        return currentSetNames.join(", "); 
+                    }
+                });
+            } else {
+                console.warn(`WARN: Could not form complete set ${i+1} due to missing images. Expected ${photosPerSet}, got ${setImagesData.length}.`);
+            }
+        }
+        // To shuffle the order of the sets themselves, uncomment the line below:
+        // shuffleArray(teacherPhotoSets);
+
+        // --- Game Data ---
+        const gameData = {
+            warmUp: {
+                title: "몸풀기 가위바위보 게임", // Updated title
+                type: "simple",
+                description: "모두 함게 단체로 가위바위보를 진행합니다!<br>선생님의 진행에 집중 해주세요~"
+            },
+            initialConsonant: {
+                title: "초성게임",
+                type: "quiz",
+                hasIntro: true,
+                introTitle: "초성퀴즈 안내",
+                introDescription: "제시된 초성을 보고 단어를 맞춰주세요!\n준비가 되면 '게임 시작' 버튼을 눌러주세요.",
+                questions: [ 
+                    { q: "ㅊ ㄱ ㄷ", a: "친구들" },
+                    { q: "ㄴ ㅇ ㅋ ㅇ ㄷ", a: "나이키운동화" }, 
+                    { q: "ㄱ ㅇ ㅎ ㄱ ㄷ ㅅ ㄴ", a: "김영훈강도사님" }, 
+                    { q: "ㅅ ㄱ ㅊ", a: "성경책" },
+                    { q: "ㅈ ㄷ ㅂ ㅈ ㅂ", a: "중등부주보" }
+                ]
+            },
+            teacherPhoto: {
+                title: "이 아이는 누구일까요?",
+                type: "photoQuiz",
+                hasIntro: true,
+                introTitle: "선생님 사진 맞추기 안내",
+                introDescription: "선생님들의 어린 시절 사진이 돌아갑니다.\n잠시 후 나타나는 5장의 사진을 보고 어떤 선생님인지 맞춰보세요!",
+                sets: teacherPhotoSets 
+            },
+            bibleNonsense: {
+                title: "넌센스퀴즈",
+                type: "quiz",
+                hasIntro: true,
+                introTitle: "성경 넌센스 퀴즈 안내",
+                introDescription: "재미있는 성경 관련 넌센스 퀴즈입니다!\n정답을 맞춰보세요.",
+                questions: [ 
+                    { q: "가장 급하게 가는 교회는?", a: "응급처치" },
+                    { q: "시간을 자꾸 물어보는 성경 속 인물은?", a: "메시아" },
+                    { q: "예수님이 옷을 살 때 직원에게 하신 말씀은?", a: "예루살렘" },
+                    { q: "하나님이 우리에게 주신 약은?", a: "신약과 구약" },
+                    { q: "예수님이 맛있는 음식을 먹고 하신 말씀은?", a: "누가볶음?" }
+                ]
+            },
+            hymnQuiz: {
+                title: "찬양 첫소절로 맞추기",
+                type: "quiz",
+                hasIntro: true,
+                introTitle: "찬양 퀴즈 안내",
+                introDescription: "찬양의 첫 소절을 듣고 제목을 맞춰주세요!\n(실제 음원은 진행자가 재생합니다)",
+                questions: [ 
+                    { q: "찬양 1 (첫 소절 듣고 맞춰주세요)", a: "[찬양 1 정답]" },
+                    { q: "찬양 2 (첫 소절 듣고 맞춰주세요)", a: "[찬양 2 정답]" },
+                    { q: "찬양 3 (첫 소절 듣고 맞춰주세요)", a: "[찬양 3 정답]" },
+                    { q: "찬양 4 (첫 소절 듣고 맞춰주세요)", a: "[찬양 4 정답]" },
+                    { q: "찬양 5 (첫 소절 듣고 맞춰주세요)", a: "[찬양 5 정답]" }
+                ]
+            },
+            paperAirplane: {
+                title: "비행기 날리기", // Updated title
+                type: "simple",
+                description: "색상 A4 용지에 미션을 적어 비행기를 접어주세요.<br>가장 멀리 날린 사람 & 강도사님이 선택한 비행기는 선물증정!!",
+                prompt: "비행기에 적을 내용 예시: '오늘 가장 감사했던 일 한 가지 적기' 또는 '옆 사람 칭찬 한마디 적기'"
+            }
+        };
+
+        // --- Application State ---
+        let activeGameKey = null;
+        let currentQuestionIndices = {}; 
+        let gameProgress = {}; // Tracks if a game with an intro is in 'intro' or 'active' state 
+
+        // --- DOM Elements ---
+        const welcomeMessageContainer = document.getElementById('welcome-message-container');
+        const gameDisplayContainer = document.getElementById('game-display-container');
+        const gameTitleDisplay = document.getElementById('game-title-display');
+        const gameContentArea = document.getElementById('game-content-area');
+        const quizControlsContainer = document.getElementById('quiz-controls-container');
+
+        const accordionHeader = document.getElementById('accordion-header');
+        const accordionIcon = document.getElementById('accordion-icon');
+        const accordionContentPanel = document.getElementById('accordion-content-panel');
+        const gameNavList = document.getElementById('game-nav-list');
+
+        // Modal DOM Elements
+        const imageModal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+
+        // --- Initialization ---
+        function initializeApp() {
+            // Populate navigation in accordion
+            Object.keys(gameData).forEach(key => {
+                const game = gameData[key];
+                const listItem = document.createElement('li');
+                const button = document.createElement('button');
+                // Use the full title for the button if it's short, or the part before a colon
+                button.textContent = game.title.includes(':') ? game.title.split(':')[0] : game.title; 
+                button.classList.add('w-full', 'text-left', 'p-3', 'rounded-md', 'hover:bg-indigo-100', 'transition-colors', 'duration-150', 'text-gray-700', 'hover:text-indigo-700', 'font-medium', 'text-base', 'game-nav-item');
+                button.dataset.gameKey = key;
+                button.onclick = () => selectGame(key);
+                listItem.appendChild(button);
+                gameNavList.appendChild(listItem);
+
+                if (game.type === "quiz" || game.type === "photoQuiz") {
+                    currentQuestionIndices[key] = 0;
+                    if (game.hasIntro) {
+                        gameProgress[key] = 'intro'; // Initialize games with intro to 'intro' state
+                    }
+                }
+            });
+
+            accordionHeader.addEventListener('click', toggleAccordion);
+        }
+
+        // --- Accordion Toggle ---
+        function toggleAccordion() {
+            const isExpanded = accordionContentPanel.classList.contains('expanded');
+
+            if (isExpanded) {
+                accordionContentPanel.classList.remove('expanded');
+                accordionIcon.classList.remove('rotate-180');
+            } else {
+                accordionContentPanel.classList.add('expanded');
+                accordionIcon.classList.add('rotate-180');
+            }
+        }
+        
+        // --- Game Selection ---
+        function selectGame(gameKey) {
+            activeGameKey = gameKey;
+            const game = gameData[gameKey];
+
+            // Reset progress to 'intro' if game has an intro page
+            if (game.hasIntro) {
+                gameProgress[gameKey] = 'intro';
+            }
+            
+            document.querySelectorAll('#game-nav-list .game-nav-item').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.gameKey === gameKey) {
+                    btn.classList.add('active');
+                }
+            });
+
+            renderActiveGame();
+            // Close accordion after selection if it's expanded
+            if (accordionContentPanel.classList.contains('expanded')) {
+                toggleAccordion();
+            }
+        }
+
+        // --- Rendering Functions ---
+        function renderActiveGame() {
+            welcomeMessageContainer.classList.add('hidden');
+            gameDisplayContainer.classList.remove('hidden');
+            
+            const game = gameData[activeGameKey];
+            gameTitleDisplay.textContent = game.title;
+            gameContentArea.innerHTML = ''; 
+            quizControlsContainer.innerHTML = '';
+
+            if (game.hasIntro && gameProgress[activeGameKey] === 'intro') {
+                renderIntroScreen(activeGameKey);
+            } else {
+                // Proceed to actual game content rendering
+                switch (game.type) {
+                    case "simple":
+                        renderSimpleGame(game);
+                        break;
+                    case "quiz":
+                        renderQuizContent(game, currentQuestionIndices[activeGameKey]);
+                        renderQuizControls(game.questions.length);
+                        break;
+                    case "photoQuiz":
+                        showTeacherPhotoSpinner(); // This will handle its own content and controls after spinner
+                        break;
+                }
+            }
+            gameContentArea.scrollTop = 0; 
+        }
+
+        function renderSimpleGame(game) {
+            let contentHTML = `<p class="text-2xl sm:text-3xl leading-relaxed whitespace-pre-line">${game.description}</p>`;
+            if (game.prompt) {
+                contentHTML += `<p class="text-xl sm:text-2xl mt-6 text-rose-600 font-semibold">${game.prompt}</p>`;
+            }
+            gameContentArea.innerHTML = contentHTML;
+        }
+
+        function renderQuizContent(game, index) {
+            const item = game.questions[index];
+            if (!item) return; 
+
+            gameContentArea.innerHTML = `
+                <div class="bg-indigo-50 p-6 rounded-lg shadow-md w-full max-w-3xl">
+                    <p class="text-4xl sm:text-5xl font-bold text-indigo-700 mb-8 min-h-[6rem] flex items-center justify-center text-center break-words">${item.q}</p>
+                    <p id="answer-text" class="text-3xl sm:text-4xl font-bold text-emerald-600 hidden min-h-[4rem] flex items-center justify-center text-center break-words"></p>
+                </div>
+            `;
+            const questionNumberDisplay = `<p class="text-xl text-gray-500 mb-4">문제 ${index + 1} / ${game.questions.length}</p>`;
+            gameContentArea.firstElementChild.insertAdjacentHTML('beforebegin', questionNumberDisplay);
+        }
+
+        function renderPhotoQuizContent(game, index) {
+            const currentSet = game.sets[index];
+            if (!currentSet) {
+                gameContentArea.innerHTML = `<p class="text-xl text-red-500">사진 세트를 불러올 수 없습니다. (세트 인덱스: ${index})</p>`;
+                return;
+            }
+
+            // 각 이미지에 이름 오버레이를 추가하고, photo-item-container로 감쌉니다.
+            const imagesHtml = currentSet.images.map(image => `
+                <div class="photo-item-container w-1/2 sm:w-1/3 md:w-1/5 p-1 sm:p-2">
+                    <img src="${image.src}" alt="선생님 사진 (${image.name})" 
+                            class="w-full h-auto object-cover rounded-md shadow-md aspect-[3/4] cursor-pointer hover:opacity-80 transition-opacity"
+                            onclick="openImageModal('${image.src}')"
+                            onerror="this.onerror=null;this.src='https://placehold.co/150x200/CCCCCC/757575?text=이미지오류';this.alt='이미지 로딩 실패';">
+                    <div class="photo-name-overlay">${image.name}</div>
+                </div>
+            `).join('');
+
+            gameContentArea.innerHTML = `
+                <p class="text-xl mb-4 text-gray-700">${currentSet.questionText}</p>
+                <div id="photo-quiz-images" class="flex flex-wrap justify-center items-start gap-1 sm:gap-2 mb-4">
+                    ${imagesHtml}
+                </div>
+                `; // 기존 정답 보기 버튼과 p#answer-text는 여기서 제거됩니다.
+                // 퀴즈 컨트롤의 "정답 보기" 버튼이 이 기능을 대신합니다.
+
+            const photoNumberDisplay = `<p class="text-xl text-gray-500 mb-4">사진 ${index + 1} / ${game.sets.length}</p>`;
+            // gameContentArea의 첫 번째 자식 요소 앞에 문제 번호를 삽입합니다.
+            // gameContentArea가 비어있지 않다면 첫 번째 자식 앞에, 비어있다면 그냥 추가합니다.
+            if (gameContentArea.firstChild) {
+                    gameContentArea.firstElementChild.insertAdjacentHTML('beforebegin', photoNumberDisplay);
+            } else {
+                    gameContentArea.innerHTML = photoNumberDisplay + gameContentArea.innerHTML;
+            }
+        }
+        
+        function renderQuizControls(totalItems) {
+            const currentIndex = currentQuestionIndices[activeGameKey];
+            
+            const prevButton = createControlButton("이전 문제", () => navigateQuiz(-1), currentIndex === 0);
+            const showAnswerButton = createControlButton("정답 보기", toggleAnswer);
+            const nextButton = createControlButton("다음 문제", () => navigateQuiz(1), currentIndex === totalItems - 1);
+
+            quizControlsContainer.append(prevButton, showAnswerButton, nextButton);
+        }
+
+        function createControlButton(text, onClick, disabled = false) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.classList.add('px-6', 'py-3', 'sm:px-8', 'sm:py-4', 'text-lg', 'sm:text-xl', 'font-semibold', 'rounded-lg', 'transition-all', 'duration-150', 'focus:outline-none', 'focus:ring-2', 'focus:ring-offset-2');
+            if (disabled) {
+                button.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+                button.disabled = true;
+            } else {
+                if (text === "정답 보기") {
+                     button.classList.add('bg-amber-500', 'hover:bg-amber-600', 'text-white', 'focus:ring-amber-400');
+                } else {
+                     button.classList.add('bg-indigo-600', 'hover:bg-indigo-700', 'text-white', 'focus:ring-indigo-500');
+                }
+                button.classList.add('shadow-md', 'hover:shadow-lg');
+            }
+            button.onclick = onClick;
+            return button;
+        }
+
+        // --- Control Functions ---
+        function toggleAnswer() {
+            const game = gameData[activeGameKey];
+            // quizControlsContainer에서 "정답 보기/숨기기" 버튼을 찾습니다.
+            // createControlButton에서 ID를 부여하지 않았으므로, 텍스트나 순서로 찾아야 합니다.
+            // 여기서는 두 번째 버튼이라고 가정합니다. (이전, 정답보기, 다음 순서)
+            // 더 안정적인 방법은 renderQuizControls에서 해당 버튼에 ID를 부여하는 것입니다.
+            const answerButton = quizControlsContainer.querySelector('button:nth-child(2)');
+
+
+            if (game.type === "photoQuiz") {
+                const overlays = gameContentArea.querySelectorAll('.photo-name-overlay');
+                if (overlays.length === 0) return;
+
+                // 첫 번째 오버레이의 현재 표시 상태를 기준으로 토글합니다.
+                const currentlyVisible = overlays[0].classList.contains('visible');
+                
+                overlays.forEach(overlay => {
+                    overlay.classList.toggle('visible', !currentlyVisible);
+                });
+
+                if (answerButton) {
+                    answerButton.textContent = !currentlyVisible ? "정답 숨기기" : "정답 보기";
+                }
+
+            } else if (game.type === "quiz") {
+                const answerEl = document.getElementById('answer-text');
+                if (!answerEl) return;
+
+                const currentIndex = currentQuestionIndices[activeGameKey];
+                const currentItem = game.questions[currentIndex];
+
+                if (answerEl.classList.contains('hidden')) {
+                    answerEl.textContent = currentItem.a; // 'a'는 일반 퀴즈의 정답 필드
+                    answerEl.classList.remove('hidden');
+                    if (answerButton) answerButton.textContent = "정답 숨기기";
+                } else {
+                    answerEl.classList.add('hidden');
+                    if (answerButton) answerButton.textContent = "정답 보기";
+                }
+            }
+        }
+
+        function navigateQuiz(direction) {
+            quizControlsContainer.innerHTML = ''; // Clear controls before navigating or showing spinner
+            const game = gameData[activeGameKey];
+            let totalItems;
+
+            if (game.type === "quiz") {
+                totalItems = game.questions.length;
+            } else if (game.type === "photoQuiz") {
+                totalItems = game.sets.length; // Corrected to use game.sets.length
+            }
+
+            let newIndex = currentQuestionIndices[activeGameKey] + direction;
+
+            if (newIndex >= 0 && newIndex < totalItems) {
+                currentQuestionIndices[activeGameKey] = newIndex;
+                const answerEl = document.getElementById('answer-text');
+                if (answerEl && !answerEl.classList.contains('hidden')) {
+                    answerEl.classList.add('hidden'); // Hide answer when navigating
+                }
+
+                if (activeGameKey === 'teacherPhoto') {
+                    showTeacherPhotoSpinner(); // For photo quiz, show spinner then new question
+                } else {
+                    renderActiveGame(); // For other quizzes, render new question directly
+                }
+            } else {
+                // If navigation is out of bounds, re-render controls for current state or intro screen
+                if (game.hasIntro && gameProgress[activeGameKey] === 'intro') {
+                    renderIntroScreen(activeGameKey);
+                } else if (game.type === "quiz" || game.type === "photoQuiz") {
+                    renderQuizControls(totalItems);
+                }
+            }
+        }
+
+        // --- Animation and Photo Quiz Specific Functions ---
+        function showTeacherPhotoSpinner() {
+            gameContentArea.innerHTML = ''; // Clear previous content
+            const scene = document.createElement('div');
+            scene.id = 'photo-spinner-scene';
+            const carousel = document.createElement('div');
+            carousel.id = 'photo-spinner-carousel';
+
+            const numImages = teacherImageFiles.length;
+            if (numImages === 0) {
+                proceedToTeacherQuizQuestion(); // No images to spin
+                return;
+            }
+
+            const imageCellWidth = 100; // Must match .spinner-image-item width
+            // Calculate radius for translateZ. Ensure numImages > 1 for tan calculation to be safe, though >2 for a circle.
+            const radius = numImages > 1 ? Math.round((imageCellWidth / 2) / Math.tan(Math.PI / numImages)) : imageCellWidth;
+            const angleIncrement = 360 / numImages;
+
+            teacherImageFiles.forEach((filename, index) => {
+                const item = document.createElement('div');
+                item.classList.add('spinner-image-item');
+                item.style.backgroundImage = `url('teachers/${filename}')`;
+                if (numImages > 1) {
+                    item.style.transform = `rotateY(${index * angleIncrement}deg) translateZ(${radius}px)`;
+                }
+                carousel.appendChild(item);
+            });
+
+            scene.appendChild(carousel);
+            gameContentArea.appendChild(scene);
+
+            // Trigger animation
+            setTimeout(() => { // Timeout to ensure styles are applied before animation class
+                carousel.classList.add('is-spinning');
+            }, 50);
+            
+            // After animation, proceed to quiz content
+            setTimeout(() => {
+                carousel.classList.remove('is-spinning');
+                proceedToTeacherQuizQuestion();
+            }, 3050); // Animation is 3s (1s * 3 iterations) + 50ms buffer
+        }
+
+        function renderIntroScreen(gameKey) {
+            const game = gameData[gameKey];
+            gameContentArea.innerHTML = `
+                <div class="text-center p-4">
+                    <h3 class="text-3xl font-bold text-indigo-700 mb-4">${game.introTitle || game.title}</h3>
+                    <p class="text-lg text-gray-600 whitespace-pre-line mb-8">${game.introDescription || '게임 시작 버튼을 눌러주세요.'}</p>
+                    <button 
+                        onclick="startGame('${gameKey}')" 
+                        class="px-8 py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg shadow-lg text-xl transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75">
+                        게임 시작!
+                    </button>
+                </div>
+            `;
+            quizControlsContainer.innerHTML = ''; // No controls on intro screen
+        }
+
+        function startGame(gameKey) {
+            if (gameData[gameKey] && gameData[gameKey].hasIntro) {
+                gameProgress[gameKey] = 'active';
+            }
+            renderActiveGame(); // Re-render to show actual game content
+        }
+
+        function proceedToTeacherQuizQuestion() {
+            gameContentArea.innerHTML = ''; // Clear spinner
+            const game = gameData.teacherPhoto;
+            const currentIndex = currentQuestionIndices.teacherPhoto;
+            if (game && game.sets && game.sets.length > 0) {
+                 renderPhotoQuizContent(game, currentIndex);
+                 renderQuizControls(game.sets.length);
+            } else {
+                gameContentArea.innerHTML = '<p class="text-xl text-red-500">선생님 사진 게임을 준비할 수 없습니다: 사진 세트가 없습니다.</p>';
+            }
+        }
+
+        // --- Image Modal Functions ---
+        function openImageModal(src) {
+            if (imageModal && modalImage) {
+                modalImage.src = src;
+                imageModal.classList.add('show');
+            }
+        }
+
+        function closeImageModal() {
+            if (imageModal) {
+                imageModal.classList.remove('show');
+            }
+        }
+        
+        // Close modal if user clicks outside the image content (on the modal background)
+        window.addEventListener('click', function(event) {
+            if (event.target === imageModal) {
+                closeImageModal();
+            }
+        });
+
+        // --- Start the app ---
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
+
