@@ -189,6 +189,14 @@
         <span class="modal-close" onclick="closeImageModal()">&times;</span>
         <img class="modal-content" id="modalImage">
     </div>
+    
+    <!-- Audio Elements -->
+    <audio id="tadaSound" preload="auto">
+        <source src="https://www.soundjay.com/misc/sounds/tada-fanfare-a-1.mp3" type="audio/mpeg">
+        <!-- 대체 사운드 소스 -->
+        <source src="https://www.myinstants.com/media/sounds/tada.mp3" type="audio/mpeg">
+        <source src="https://www.orangefreesounds.com/wp-content/uploads/2014/10/Tada-sound.mp3" type="audio/mpeg">
+    </audio>
 
     <script>
         // --- Teacher Photo Game Data Setup ---
@@ -528,7 +536,7 @@
             // 여기서는 두 번째 버튼이라고 가정합니다. (이전, 정답보기, 다음 순서)
             // 더 안정적인 방법은 renderQuizControls에서 해당 버튼에 ID를 부여하는 것입니다.
             const answerButton = quizControlsContainer.querySelector('button:nth-child(2)');
-
+            const tadaSound = document.getElementById('tadaSound');
 
             if (game.type === "photoQuiz") {
                 const overlays = gameContentArea.querySelectorAll('.photo-name-overlay');
@@ -536,6 +544,14 @@
 
                 // 첫 번째 오버레이의 현재 표시 상태를 기준으로 토글합니다.
                 const currentlyVisible = overlays[0].classList.contains('visible');
+                
+                // 정답을 보여줄 때만 tada 소리를 재생합니다
+                if (!currentlyVisible && tadaSound) {
+                    tadaSound.currentTime = 0; // 소리를 처음부터 재생
+                    tadaSound.play().catch(error => {
+                        console.warn('Tada sound play failed:', error);
+                    });
+                }
                 
                 overlays.forEach(overlay => {
                     overlay.classList.toggle('visible', !currentlyVisible);
@@ -556,6 +572,14 @@
                     answerEl.textContent = currentItem.a; // 'a'는 일반 퀴즈의 정답 필드
                     answerEl.classList.remove('hidden');
                     if (answerButton) answerButton.textContent = "정답 숨기기";
+                    
+                    // 정답을 보여줄 때 tada 소리를 재생합니다
+                    if (tadaSound) {
+                        tadaSound.currentTime = 0; // 소리를 처음부터 재생
+                        tadaSound.play().catch(error => {
+                            console.warn('Tada sound play failed:', error);
+                        });
+                    }
                 } else {
                     answerEl.classList.add('hidden');
                     if (answerButton) answerButton.textContent = "정답 보기";
